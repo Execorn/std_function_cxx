@@ -9,6 +9,7 @@
 #include <memory>
 #include <array>
 #include <type_traits>
+#include <cassert>
 
 // github.com/execorn/std_function_cxx
 namespace X17 {
@@ -21,12 +22,9 @@ struct bad_function_call : std::runtime_error {
         : std::runtime_error(report_message) {
         // This check probably should be here, but my throw_bad_call macro
         // guarantees __FILE__ will be passed as the second argument
-        /*
-        if (file == nullptr) {
-            fprintf(stderr, "SOMETHING WRONG HAPPENED, REPORT TO THE DEVS.\n");
-            exit(EXIT_FAILURE);
-        }
-        */
+        
+        assert(file != nullptr);
+       //TODO: change to sprintf 
         std::ostringstream exception_message_stream;
         exception_message_stream << file << ":" << line_number << ": "
                                  << report_message;
@@ -80,9 +78,9 @@ class function_wrapper_base {
    public:
     virtual ~function_wrapper_base() noexcept {}
 
-    virtual TResult operator()(TArgs&&... arguments) noexcept = 0;
+    virtual TResult operator()(TArgs&&... arguments) = 0;
 
-    virtual void copy(void* ptr_to_dest) const noexcept = 0;
+    virtual void copy(void* ptr_to_dest) const = 0;
 
     virtual function_wrapper_base<TResult, TArgs...>* clone() const = 0;
 };
@@ -94,16 +92,17 @@ class function_wrapper final : function_wrapper_base<TResult, TArgs...> {
    public:
     function_wrapper(Functor function) noexcept : m_functor(function) {}
 
-    TResult operator()(TArgs&&... arguments) noexcept override final {
+    TResult operator()(TArgs&&... arguments) override final {
         return m_functor(std::forward<TArgs>(arguments)...);
     }
 
-    void copy(void* ptr_to_dest) const noexcept override final {
+    // TODO: check if noexcept is needed
+    void copy(void* ptr_to_dest) const override final {
         new (ptr_to_dest) function_wrapper(m_functor);
     }
 
     function_wrapper_base<TResult, TArgs...>* clone()
-        const noexcept override final {
+        const override final {
         return new function_wrapper(m_functor);
     }
 
@@ -152,6 +151,7 @@ class function<TResult(TArgs...)>
                 (decltype(m_function_wrapper_ptr))std::addressof(m_stack)) {
                 // TODO: resolve the warning -Wmaybe-uninitialized (leak
                 // sanitizer)
+                // TODO: add pragmas to silent warning
                 m_function_wrapper_ptr->~function_wrapper_base();
             } else {
                 delete m_function_wrapper_ptr;
